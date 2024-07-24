@@ -282,7 +282,7 @@ nmapProgressBar() {
 
     # Print final output, remove extra nmap noise
     if [ -e "${outputFile}" ]; then
-        sed -n '/PORT.*STATE.*SERVICE/,/^# Nmap/H;${x;s/^\n\|\n[^\n]*\n# Nmap.*//gp}' "${outputFile}" | awk '!/^SF(:|-).*$/' | grep -v 'service unrecognized despite'
+        sed -n '/PORT.*STATE.*SERVICE/,/^# Nmap/{H; $!d; x; s/^\n//; s/\n# Nmap.*//; p}' "${outputFile}" | awk '!/^SF(:|-).*$/' | grep -v 'service unrecognized despite'
     else
         cat "${tmpOutputFile}"
     fi
