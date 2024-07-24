@@ -245,46 +245,51 @@ cmpPorts() {
 # Print nmap progress bar
 # $1 is $scanType, $2 is $percent, $3 is $elapsed, $4 is $remaining
 progressBar() {
-        [ -z "${2##*[!0-9]*}" ] && return 1
-        [ "$(stty size | cut -d ' ' -f 2)" -le 120 ] && width=50 || width=100
-        fill="$(printf "%-$((width == 100 ? $2 : ($2 / 2)))s" "#" | tr ' ' '#')"
-        empty="$(printf "%-$((width - (width == 100 ? $2 : ($2 / 2))))s" " ")"
-        printf "In progress: $1 Scan ($3 elapsed - $4 remaining)   \n"
-        printf "[${fill}>${empty}] $2%% done   \n"
-        printf "\e[2A"
+    [ -z "${2##*[!0-9]*}" ] && return 1
+    [ "$(stty size | cut -d ' ' -f 2)" -le 120 ] && width=50 || width=100
+    fill="$(printf "%-${width}s" "#" | tr ' ' '#')"
+    fill="${fill:0:$((width * $2 / 100))}"
+    empty="$(printf "%-${width}s" " ")"
+    empty="${empty:0:$((width - ${#fill}))}"
+    printf "In progress: $1 Scan ($3 elapsed - $4 remaining)   \n"
+    printf "[${fill}>${empty}] $2%% done   \n"
+    printf "\e[2A"
 }
+
 
 # Calculate current progress bar status based on nmap stats (with --stats-every)
 # $1 is nmap command to be run, $2 is progress bar $refreshRate
 nmapProgressBar() {
-        refreshRate="${2:-1}"
-        outputFile="$(echo $1 | sed -e 's/.*-oN \(.*\).nmap.*/\1/').nmap"
-        tmpOutputFile="${outputFile}.tmp"
+    refreshRate="${2:-1}"
+    outputFile="$(echo $1 | sed -e 's/.*-oN \(.*\).nmap.*/\1/').nmap"
+    tmpOutputFile="${outputFile}.tmp"
 
-        # Run the nmap command
-        if [ ! -e "${outputFile}" ]; then
-                $1 --stats-every "${refreshRate}s" >"${tmpOutputFile}" 2>&1 &
-        fi
+    # Run the nmap command
+    if [ ! -e "${outputFile}" ]; then
+        $1 --stats-every "${refreshRate}s" >"${tmpOutputFile}" 2>&1 &
+    fi
 
-        # Keep checking nmap stats and calling progressBar() every $refreshRate
-        while { [ ! -e "${outputFile}" ] || ! grep -q "Nmap done at" "${outputFile}"; } && { [ ! -e "${tmpOutputFile}" ] || ! grep -i -q "quitting" "${tmpOutputFile}"; }; do
-                scanType="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -ne '/elapsed/{s/.*undergoing \(.*\) Scan.*/\1/p}')"
-                percent="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -ne '/% done/{s/.*About \(.*\)\..*% done.*/\1/p}')"
-                elapsed="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -ne '/elapsed/{s/Stats: \(.*\) elapsed.*/\1/p}')"
-                remaining="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -ne '/remaining/{s/.* (\(.*\) remaining.*/\1/p}')"
-                progressBar "${scanType:-No}" "${percent:-0}" "${elapsed:-0:00:00}" "${remaining:-0:00:00}"
-                sleep "${refreshRate}"
-        done
-        printf "\033[0K\r\n\033[0K\r\n"
+    # Keep checking nmap stats and calling progressBar() every $refreshRate
+    while { [ ! -e "${outputFile}" ] || ! grep -q "Nmap done at" "${outputFile}"; } && { [ ! -e "${tmpOutputFile}" ] || ! grep -i -q "quitting" "${tmpOutputFile}"; }; do
+        scanType="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/elapsed/s/.*undergoing \(.*\) Scan.*/\1/p')"
+        percent="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/% done/s/.*About \(.*\)\..*% done.*/\1/p')"
+        elapsed="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/elapsed/s/Stats: \(.*\) elapsed.*/\1/p')"
+        remaining="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/remaining/s/.* (\(.*\) remaining.*/\1/p')"
+        progressBar "${scanType:-No}" "${percent:-0}" "${elapsed:-0:00:00}" "${remaining:-0:00:00}"
+        sleep "${refreshRate}"
+    done
+    printf "\033[0K\r\n\033[0K\r\n"
 
-        # Print final output, remove extra nmap noise
-        if [ -e "${outputFile}" ]; then
-                sed -n '/PORT.*STATE.*SERVICE/,/^# Nmap/H;${x;s/^\n\|\n[^\n]*\n# Nmap.*//gp}' "${outputFile}" | awk '!/^SF(:|-).*$/' | grep -v 'service unrecognized despite'
-        else
-                cat "${tmpOutputFile}"
-        fi
-        rm -f "${tmpOutputFile}"
+    # Print final output, remove extra nmap noise
+    if [ -e "${outputFile}" ]; then
+        sed -n '/PORT.*STATE.*SERVICE/,/^# Nmap/H;${x;s/^\n\|\n[^\n]*\n# Nmap.*//gp}' "${outputFile}" | awk '!/^SF(:|-).*$/' | grep -v 'service unrecognized despite'
+    else
+        cat "${tmpOutputFile}"
+    fi
+    rm -f "${tmpOutputFile}"
 }
+
+
 
 # Nmap scan for live hosts
 networkScan() {
