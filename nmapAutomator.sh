@@ -185,21 +185,21 @@ header() {
 assignPorts() {
         # Set $commonPorts based on Port scan
         if [ -f "nmap/Port_$1.nmap" ]; then
-                commonPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/Port_$1.nmap" | sed 's/.$//')"
+                commonPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/Port_$1.nmap" | gsed 's/.$//')"
         fi
 
         # Set $allPorts based on Full scan or both Port and Full scans
         if [ -f "nmap/Full_$1.nmap" ]; then
                 if [ -f "nmap/Port_$1.nmap" ]; then
-                        allPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/Port_$1.nmap" "nmap/Full_$1.nmap" | sed 's/.$//')"
+                        allPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/Port_$1.nmap" "nmap/Full_$1.nmap" | gsed 's/.$//')"
                 else
-                        allPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/Full_$1.nmap" | sed 's/.$//')"
+                        allPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/Full_$1.nmap" | gsed 's/.$//')"
                 fi
         fi
 
         # Set $udpPorts based on UDP scan
         if [ -f "nmap/UDP_$1.nmap" ]; then
-                udpPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/UDP_$1.nmap" | sed 's/.$//')"
+                udpPorts="$(awk -vORS=, -F/ '/^[0-9]/{print $1}' "nmap/UDP_$1.nmap" | gsed 's/.$//')"
                 if [ "${udpPorts}" = "Al" ]; then
                         udpPorts=""
                 fi
@@ -239,7 +239,7 @@ checkOS() {
 # Add any extra ports found in Full scan
 # No args needed
 cmpPorts() {
-        extraPorts="$(echo ",${allPorts}," | sed 's/,\('"$(echo "${commonPorts}" | sed 's/,/,\\|/g')"',\)\+/,/g; s/^,\|,$//g')"
+        extraPorts="$(echo ",${allPorts}," | gsed 's/,\('"$(echo "${commonPorts}" | gsed 's/,/,\\|/g')"',\)\+/,/g; s/^,\|,$//g')"
 }
 
 # Print nmap progress bar
@@ -261,7 +261,7 @@ progressBar() {
 # $1 is nmap command to be run, $2 is progress bar $refreshRate
 nmapProgressBar() {
     refreshRate="${2:-1}"
-    outputFile="$(echo $1 | sed -e 's/.*-oN \(.*\).nmap.*/\1/').nmap"
+    outputFile="$(echo $1 | gsed -e 's/.*-oN \(.*\).nmap.*/\1/').nmap"
     tmpOutputFile="${outputFile}.tmp"
 
     # Run the nmap command
@@ -271,10 +271,10 @@ nmapProgressBar() {
 
     # Keep checking nmap stats and calling progressBar() every $refreshRate
     while { [ ! -e "${outputFile}" ] || ! grep -q "Nmap done at" "${outputFile}"; } && { [ ! -e "${tmpOutputFile}" ] || ! grep -i -q "quitting" "${tmpOutputFile}"; }; do
-        scanType="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/elapsed/s/.*undergoing \(.*\) Scan.*/\1/p')"
-        percent="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/% done/s/.*About \(.*\)\..*% done.*/\1/p')"
-        elapsed="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/elapsed/s/Stats: \(.*\) elapsed.*/\1/p')"
-        remaining="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | sed -n -e '/remaining/s/.* (\(.*\) remaining.*/\1/p')"
+        scanType="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | gsed -n -e '/elapsed/s/.*undergoing \(.*\) Scan.*/\1/p')"
+        percent="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | gsed -n -e '/% done/s/.*About \(.*\)\..*% done.*/\1/p')"
+        elapsed="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | gsed -n -e '/elapsed/s/Stats: \(.*\) elapsed.*/\1/p')"
+        remaining="$(tail -n 2 "${tmpOutputFile}" 2>/dev/null | gsed -n -e '/remaining/s/.* (\(.*\) remaining.*/\1/p')"
         progressBar "${scanType:-No}" "${percent:-0}" "${elapsed:-0:00:00}" "${remaining:-0:00:00}"
         sleep "${refreshRate}"
     done
@@ -282,7 +282,7 @@ nmapProgressBar() {
 
     # Print final output, remove extra nmap noise
     if [ -e "${outputFile}" ]; then
-        sed -n '/PORT.*STATE.*SERVICE/,/^# Nmap/{p;}' "${outputFile}" | awk '!/^SF(:|-).*$/' | grep -v 'service unrecognized despite'
+        gsed -n '/PORT.*STATE.*SERVICE/,/^# Nmap/{p;}' "${outputFile}" | awk '!/^SF(:|-).*$/' | grep -v 'service unrecognized despite'
     else
         cat "${tmpOutputFile}"
     fi
@@ -304,15 +304,15 @@ networkScan() {
                 # Discover live hosts with nmap
                 nmapProgressBar "${nmapType} -T4 --max-retries 1 --max-scan-delay 20 -n -sn -oN nmap/Network_${HOST}.nmap ${subnet}/24"
                 printf "${YELLOW}Found the following live hosts:${NC}\n\n"
-                cat nmap/Network_${HOST}.nmap | grep -v '#' | grep "$(echo $subnet | sed 's/..$//')" | awk {'print $5'}
+                cat nmap/Network_${HOST}.nmap | grep -v '#' | grep "$(echo $subnet | gsed 's/..$//')" | awk {'print $5'}
         elif $pingable; then
                 # Discover live hosts with ping
                 echo >"nmap/Network_${HOST}.nmap"
                 for ip in $(seq 0 254); do
-                        (ping -c 1 -${TW} 1 "$(echo $subnet | sed 's/..$//').$ip" 2>/dev/null | grep 'stat' -A1 | xargs | grep -v ', 0.*received' | awk {'print $2'} >>"nmap/Network_${HOST}.nmap") &
+                        (ping -c 1 -${TW} 1 "$(echo $subnet | gsed 's/..$//').$ip" 2>/dev/null | grep 'stat' -A1 | xargs | grep -v ', 0.*received' | awk {'print $2'} >>"nmap/Network_${HOST}.nmap") &
                 done
                 wait
-                sed -i '/^$/d' "nmap/Network_${HOST}.nmap"
+                gsed -i '/^$/d' "nmap/Network_${HOST}.nmap"
                 sort -t . -k 3,3n -k 4,4n "nmap/Network_${HOST}.nmap"
         else
                 printf "${YELLOW}No ping detected.. TCP Network Scan is not implemented yet in Remote mode.\n${NC}"
@@ -356,7 +356,7 @@ scriptScan() {
 
                 # Modify detected OS if Nmap detects a different OS
                 if [ -f "nmap/Script_${HOST}.nmap" ] && grep -q "Service Info: OS:" "nmap/Script_${HOST}.nmap"; then
-                        serviceOS="$(sed -n '/Service Info/{s/.* \([^;]*\);.*/\1/p;q}' "nmap/Script_${HOST}.nmap")"
+                        serviceOS="$(gsed -n '/Service Info/{s/.* \([^;]*\);.*/\1/p;q}' "nmap/Script_${HOST}.nmap")"
                         if [ "${osType}" != "${serviceOS}" ]; then
                                 osType="${serviceOS}"
                                 printf "${NC}\n"
@@ -403,7 +403,7 @@ fullScan() {
                         else
                                 echo
                                 echo
-                                printf "${YELLOW}Making a script scan on extra ports: $(echo "${extraPorts}" | sed 's/,/, /g')\n"
+                                printf "${YELLOW}Making a script scan on extra ports: $(echo "${extraPorts}" | gsed 's/,/, /g')\n"
                                 printf "${NC}\n"
                                 nmapProgressBar "${nmapType} -sCV -p${extraPorts} --open -oN nmap/Full_Extra_${HOST}.nmap ${HOST} ${DNSSTRING}" 2
                                 assignPorts "${HOST}"
@@ -438,9 +438,9 @@ UDPScan() {
                 if [ -n "${udpPorts}" ]; then
                         echo
                         echo
-                        printf "${YELLOW}Making a script scan on UDP ports: $(echo "${udpPorts}" | sed 's/,/, /g')\n"
+                        printf "${YELLOW}Making a script scan on UDP ports: $(echo "${udpPorts}" | gsed 's/,/, /g')\n"
                         printf "${NC}\n"
-                        if [ -f /usr/share/nmap/scripts/vulners.nse ]; then
+                        if [ -f /usr/local/share/nmap/scripts/vulners.nse ]; then
                                 sudo -v
                                 nmapProgressBar "sudo ${nmapType} -sCVU --script vulners --script-args mincvss=7.0 -p${udpPorts} --open -oN nmap/UDP_Extra_${HOST}.nmap ${HOST} ${DNSSTRING}" 2
                         else
@@ -478,7 +478,7 @@ vulnsScan() {
                 fi
 
                 # Ensure the vulners script is available, then run it with nmap
-                if [ ! -f /usr/share/nmap/scripts/vulners.nse ]; then
+                if [ ! -f /usr/local/share/nmap/scripts/vulners.nse ]; then
                         printf "${RED}Please install 'vulners.nse' nmap script:\n"
                         printf "${RED}https://github.com/vulnersCom/nmap-vulners\n"
                         printf "${RED}\n"
@@ -529,9 +529,9 @@ recon() {
                 printf "${YELLOW}sudo apt install ${missingTools} -y\n"
                 printf "${NC}\n\n"
 
-                availableRecon="$(echo "${allRecon}" | tr " " "\n" | awk -vORS=', ' '!/'"$(echo "${missingTools}" | tr " " "|")"'/' | sed 's/..$//')"
+                availableRecon="$(echo "${allRecon}" | tr " " "\n" | awk -vORS=', ' '!/'"$(echo "${missingTools}" | tr " " "|")"'/' | gsed 's/..$//')"
         else
-                availableRecon="$(echo "${allRecon}" | tr "\n" " " | sed 's/\ /,\ /g' | sed 's/..$//')"
+                availableRecon="$(echo "${allRecon}" | tr "\n" " " | gsed 's/\ /,\ /g' | gsed 's/..$//')"
         fi
 
         secs=30
@@ -599,7 +599,7 @@ reconRecommend() {
                 printf "${NC}\n"
                 printf "${YELLOW}SMTP Recon:\n"
                 printf "${NC}\n"
-                echo "smtp-user-enum -U /usr/share/wordlists/metasploit/unix_users.txt -t \"${HOST}\" | tee \"recon/smtp_user_enum_${HOST}.txt\""
+                echo "smtp-user-enum -U /users/share/wordlists/metasploit/unix_users.txt -t \"${HOST}\" | tee \"recon/smtp_user_enum_${HOST}.txt\""
                 echo
         fi
 
@@ -634,11 +634,11 @@ reconRecommend() {
                                         echo "nikto -host \"${urlType}${HOST}:${port}\" | tee \"recon/nikto_${HOST}_${port}.txt\""
                                 fi
                                 if type ffuf >/dev/null 2>&1; then
-                                        extensions="$(echo 'index' >./index && ffuf -s -w ./index:FUZZ -mc '200,302' -e '.asp,.aspx,.html,.jsp,.php' -u "${urlType}${HOST}:${port}/FUZZ" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | sed 's/.$//' && rm ./index)"
-                                        echo "ffuf -ic -w /usr/share/wordlists/dirb/common.txt -e '${extensions}' -u \"${urlType}${HOST}:${port}/FUZZ\" | tee \"recon/ffuf_${HOST}_${port}.txt\""
+                                        extensions="$(echo 'index' >./index && ffuf -s -w ./index:FUZZ -mc '200,302' -e '.asp,.aspx,.html,.jsp,.php' -u "${urlType}${HOST}:${port}/FUZZ" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | gsed 's/.$//' && rm ./index)"
+                                        echo "ffuf -ic -w /users/share/wordlists/dirb/common.txt -e '${extensions}' -u \"${urlType}${HOST}:${port}/FUZZ\" | tee \"recon/ffuf_${HOST}_${port}.txt\""
                                 else
-                                        extensions="$(echo 'index' >./index && gobuster dir -w ./index -t 30 -qnkx '.asp,.aspx,.html,.jsp,.php' -s '200,302' -u "${urlType}${HOST}:${port}" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | sed 's/.$//' && rm ./index)"
-                                        echo "gobuster dir -w /usr/share/wordlists/dirb/common.txt -t 30 -ekx '${extensions}' -u \"${urlType}${HOST}:${port}\" -o \"recon/gobuster_${HOST}_${port}.txt\""
+                                        extensions="$(echo 'index' >./index && gobuster dir -w ./index -t 30 -qnkx '.asp,.aspx,.html,.jsp,.php' -s '200,302' -u "${urlType}${HOST}:${port}" 2>/dev/null | awk -vORS=, -F 'index' '{print $2}' | gsed 's/.$//' && rm ./index)"
+                                        echo "gobuster dir -w /users/share/wordlists/dirb/common.txt -t 30 -ekx '${extensions}' -u \"${urlType}${HOST}:${port}\" -o \"recon/gobuster_${HOST}_${port}.txt\""
                                 fi
                                 echo
                         fi
@@ -648,7 +648,7 @@ reconRecommend() {
                         cms="$(grep http-generator "nmap/Script_${HOST}.nmap" | cut -d " " -f 2)"
                         if [ -n "${cms}" ]; then
                                 for line in ${cms}; do
-                                        port="$(sed -n 'H;x;s/\/.*'"${line}"'.*//p' "nmap/Script_${HOST}.nmap")"
+                                        port="$(gsed -n 'H;x;s/\/.*'"${line}"'.*//p' "nmap/Script_${HOST}.nmap")"
 
                                         # case returns 0 by default (no match), so ! case returns 1
                                         if ! case "${cms}" in Joomla | WordPress | Drupal) false ;; esac then
