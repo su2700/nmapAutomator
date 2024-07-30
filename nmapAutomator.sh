@@ -478,7 +478,7 @@ vulnsScan() {
                 fi
 
                 # Ensure the vulners script is available, then run it with nmap
-                if [ ! -f /usr/local/share/nmap/scripts/vulners.nse ]|| [ ! -f "/usr/local/share/nmap/scripts/vulners.nse" ]; then
+                if [ ! -f /opt/homebrew/share/nmap/scripts/vulners.nse  ]|| [ ! -f /usr/local/share/nmap/scripts/vulners.nse ]; then
                         printf "${RED}Please install 'vulners.nse' nmap script:\n"
                         printf "${RED}https://github.com/vulnersCom/nmap-vulners\n"
                         printf "${RED}\n"
