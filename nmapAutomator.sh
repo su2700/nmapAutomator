@@ -30,11 +30,55 @@ trap cleanup EXIT INT TERM
 elapsedStart="$(date '+%H:%M:%S' | awk -F: '{print $1 * 3600 + $2 * 60 + $3}')"
 REMOTE=false
 
+checkDeps() {
+        echo
+        printf "${GREEN}------------------ Checking Dependencies ------------------${NC}\n\n"
+        coreTools="nmap sed awk grep ping host"
+        reconTools="ffuf gobuster nikto sslscan joomscan wpscan smbmap enum4linux dnsrecon droopescan odat smtp-user-enum snmp-check snmpwalk ldapsearch"
+
+        missingList=""
+        printf "${YELLOW}%-20s %-15s${NC}\n" "Tool Name" "Status"
+        printf "${YELLOW}%-20s %-15s${NC}\n" "---------" "------"
+
+        printf "${YELLOW}[Core Dependencies]${NC}\n"
+        for tool in ${coreTools}; do
+                if command -v "${tool}" >/dev/null 2>&1; then
+                        printf "  %-18s ${GREEN}[INSTALLED]${NC}\n" "${tool}"
+                else
+                        printf "  %-18s ${RED}[MISSING]${NC}\n" "${tool}"
+                        missingList="${missingList} ${tool}"
+                fi
+        done
+
+        printf "\n${YELLOW}[Recon Dependencies]${NC}\n"
+        for tool in ${reconTools}; do
+                if command -v "${tool}" >/dev/null 2>&1; then
+                        printf "  %-18s ${GREEN}[INSTALLED]${NC}\n" "${tool}"
+                else
+                        printf "  %-18s ${RED}[MISSING]${NC}\n" "${tool}"
+                        missingList="${missingList} ${tool}"
+                fi
+        done
+
+        echo
+        if [ -n "${missingList}" ]; then
+                printf "${RED}Missing tools:${NC}${missingList}\n\n"
+                printf "${YELLOW}You can install missing packages with:${NC}\n"
+                printf "  sudo apt update && sudo apt install -y${missingList}\n\n"
+        else
+                printf "${GREEN}All core and recon dependencies are installed!${NC}\n\n"
+        fi
+}
+
 # Parse flags
 while [ $# -gt 0 ]; do
         key="$1"
 
         case "${key}" in
+        -c | --check-deps)
+                CHECK_DEPS=true
+                shift
+                ;;
         -H | --host)
                 HOST="$2"
                 shift
@@ -72,13 +116,22 @@ while [ $# -gt 0 ]; do
 done
 set -- ${POSITIONAL}
 
-# Legacy flags support, if run without -H/-t
-if [ -z "${HOST}" ]; then
-        HOST="$1"
+# If -c/--check-deps flag passed, check dependencies and exit
+if [ "${CHECK_DEPS}" = "true" ]; then
+        checkDeps
+        exit 0
 fi
 
-if [ -z "${TYPE}" ]; then
-        TYPE="$2"
+# Legacy flags & shorthand positional argument support (e.g. 'na 192.168.1.1' defaults to 'All')
+if [ -z "${HOST}" ]; then
+        HOST="$1"
+        if [ -n "$2" ]; then
+                TYPE="$2"
+        fi
+fi
+
+if [ -n "${HOST}" ] && [ -z "${TYPE}" ]; then
+        TYPE="All"
 fi
 
 # Legacy types support, if quick/basic used
