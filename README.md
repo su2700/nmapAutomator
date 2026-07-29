@@ -122,7 +122,7 @@ echo "alias na='nmapAutomator.sh'" >> ~/.zshrc && source ~/.zshrc
 ```
 na -h
 Usage: nmapAutomator.sh -H/--host <TARGET-IP> -t/--type <TYPE>
-Optional: [-r/--remote <REMOTE MODE>] [-d/--dns <DNS SERVER>] [-o/--output <OUTPUT DIRECTORY>] [-s/--static-nmap <STATIC NMAP PATH>] [-c/--check-deps]
+Optional: [-r/--remote <REMOTE MODE>] [-d/--dns <DNS SERVER>] [-o/--output <OUTPUT DIRECTORY>] [-s/--static-nmap <STATIC NMAP PATH>] [-c/--check-deps] [-m/--min-rate <RATE>]
 
 Scan Types:
 	Network : Shows all live hosts in the host's network (~15 seconds)
@@ -144,8 +144,11 @@ na --check-deps
 
 **Example scans**:
 ```bash
-# Shorthand: Automatically runs All scans on target IP
+# Fast Shorthand: Runs All scans with high speed (default 1000 pps)
 na 10.1.1.1
+
+# High Speed Scan (2500 pps for fast lab environments):
+na 10.1.1.1 -m 2500
 
 # Explicit scans:
 na --host 10.1.1.1 --type All
